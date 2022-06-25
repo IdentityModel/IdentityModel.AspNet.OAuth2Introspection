@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Net.Http.Headers;
 using System;
-using System.Linq;
 
 namespace IdentityModel.AspNetCore.OAuth2Introspection
 {
@@ -13,24 +13,26 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
     public static class TokenRetrieval
     {
         /// <summary>
-        /// Reads the token from the authrorization header.
+        /// Reads the token from the authorization header.
         /// </summary>
         /// <param name="scheme">The scheme (defaults to Bearer).</param>
-        /// <returns></returns>
-        public static Func<HttpRequest, string> FromAuthorizationHeader(string scheme = "Bearer")
+        public static Func<HttpRequest, string> FromAuthorizationHeader(
+            string scheme = OAuth2IntrospectionDefaults.AuthenticationScheme)
         {
+            string schemePrefix = scheme + " ";
+
             return request =>
             {
-                string authorization = request.Headers["Authorization"].FirstOrDefault();
-
-                if (string.IsNullOrEmpty(authorization))
+                if (request.Headers.TryGetValue(HeaderNames.Authorization, out var value) &&
+                    value.Count != 0)
                 {
-                    return null;
-                }
+                    string authorization = value[0];
 
-                if (authorization.StartsWith(scheme + " ", StringComparison.OrdinalIgnoreCase))
-                {
-                    return authorization.Substring(scheme.Length + 1).Trim();
+                    if (!string.IsNullOrEmpty(authorization) &&
+                        authorization.StartsWith(schemePrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new string(authorization.AsSpan(schemePrefix.Length).Trim());
+                    }
                 }
 
                 return null;
@@ -41,10 +43,15 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         /// Reads the token from a query string parameter.
         /// </summary>
         /// <param name="name">The name (defaults to access_token).</param>
-        /// <returns></returns>
         public static Func<HttpRequest, string> FromQueryString(string name = "access_token")
         {
-            return request => request.Query[name].FirstOrDefault();
+            return request =>
+            {
+                if (request.Query.TryGetValue(name, out var value) && value.Count > 0)
+                    return value[0];
+
+                return null;
+            };
         }
     }
 }
