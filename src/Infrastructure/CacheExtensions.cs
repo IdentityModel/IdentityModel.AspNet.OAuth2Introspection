@@ -9,7 +9,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace IdentityModel.AspNetCore.OAuth2Introspection
@@ -20,24 +19,17 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
         static CacheExtensions()
         {
-            
+            Options = new JsonSerializerOptions
+            {
+                IgnoreReadOnlyFields = true,
+                IgnoreReadOnlyProperties = true,
+                Converters = { new ClaimConverter() },
 #if NET6_0_OR_GREATER
-            Options = new JsonSerializerOptions
-            {
-                IgnoreReadOnlyFields = true,
-                IgnoreReadOnlyProperties = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
 #else
-            Options = new JsonSerializerOptions
-            {
-                IgnoreReadOnlyFields = true,
-                IgnoreReadOnlyProperties = true,
-                IgnoreNullValues = true
-            };
+                IgnoreNullValues = true,
 #endif
-            
-            Options.Converters.Add(new ClaimConverter());
+            };
         }
 
         public static async Task<IEnumerable<Claim>> GetClaimsAsync(this IDistributedCache cache, OAuth2IntrospectionOptions options, string token)
