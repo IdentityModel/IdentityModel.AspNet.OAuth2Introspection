@@ -51,14 +51,13 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
             var expClaim = claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Expiration);
             if (expClaim == null)
             {
-                logger.LogWarning("No exp claim found on introspection response, can't cache.");
+                Log.NoExpClaimFound(logger, null);
                 return;
             }
 
             var now = DateTimeOffset.UtcNow;
             var expiration = DateTimeOffset.FromUnixTimeSeconds(long.Parse(expClaim.Value));
-            logger.LogDebug("Token will expire in {expiration}", expiration);
-
+            Log.TokenExpiresOn(logger, expiration, null);
 
             if (expiration <= now)
             {
@@ -79,7 +78,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
             var json = JsonSerializer.Serialize(claims, Options);
             var bytes = Encoding.UTF8.GetBytes(json);
 
-            logger.LogDebug("Setting cache item expiration to {expiration}", absoluteLifetime);
+            Log.SettingToCache(logger, absoluteLifetime, null);
             var cacheKey = options.CacheKeyGenerator(options, token);
             await cache.SetAsync(cacheKey, bytes, new DistributedCacheEntryOptions { AbsoluteExpiration = absoluteLifetime }).ConfigureAwait(false);
         }

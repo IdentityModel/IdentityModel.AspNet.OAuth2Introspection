@@ -78,9 +78,9 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
             // if token contains a dot - it might be a JWT and we are skipping
             // this is configurable
-            if (token.Contains('.') && Options.SkipTokensWithDots)
+            if (Options.SkipTokensWithDots && token.Contains('.'))
             {
-                _logger.LogTrace("Token contains a dot - skipped because SkipTokensWithDots is set.");
+                Log.SkippingDotToken(_logger, null);
                 return AuthenticateResult.NoResult();
             }
 
@@ -100,7 +100,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                     return await CreateTicket(claims, token, Context, Scheme, Events, Options);
                 }
 
-                _logger.LogTrace("Token is not cached.");
+                Log.TokenNotCached(_logger, null);
             }
 
             // no cached result - let's make a network roundtrip to the introspection endpoint
@@ -119,7 +119,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
                 if (response.IsError)
                 {
-                    _logger.LogError("Error returned from introspection endpoint: " + response.Error);
+                    Log.IntrospectionError(_logger, response.Error, null);
                     return await ReportNonSuccessAndReturn("Error returned from introspection endpoint: " + response.Error, Context, Scheme, Events, Options);
                 }
 
