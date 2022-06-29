@@ -74,8 +74,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 absoluteLifetime = now.Add(duration);
             }
 
-            var json = JsonSerializer.Serialize(claims, Options);
-            var bytes = Encoding.UTF8.GetBytes(json);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(claims, Options);
 
             Log.SettingToCache(logger, absoluteLifetime, null);
             var cacheKey = options.CacheKeyGenerator(options, token);
