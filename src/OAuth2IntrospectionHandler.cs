@@ -84,10 +84,12 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 return AuthenticateResult.NoResult();
             }
 
+            string cacheKey = Options.EnableCaching ? Options.CacheKeyGenerator(Options, token) : null;
+
             // if caching is enable - let's check if we have a cached introspection
             if (Options.EnableCaching)
             {
-                var claims = await _cache.GetClaimsAsync(Options, token).ConfigureAwait(false);
+                var claims = await _cache.GetClaimsAsync(cacheKey).ConfigureAwait(false);
                 if (claims != null)
                 {
                     // find out if it is a cached inactive token
@@ -127,7 +129,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 {
                     if (Options.EnableCaching)
                     {
-                        await _cache.SetClaimsAsync(Options, token, response.Claims, Options.CacheDuration, _logger).ConfigureAwait(false);
+                        await _cache.SetClaimsAsync(cacheKey, response.Claims, Options.CacheDuration, _logger).ConfigureAwait(false);
                     }
 
                     return await CreateTicket(response.Claims, token, Context, Scheme, Events, Options);
@@ -140,8 +142,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                         var claimsWithExp = response.Claims.ToList();
                         claimsWithExp.Add(new Claim("exp",
                             DateTimeOffset.UtcNow.Add(Options.CacheDuration).ToUnixTimeSeconds().ToString()));
-                        await _cache.SetClaimsAsync(Options, token, claimsWithExp, Options.CacheDuration, _logger)
-                            .ConfigureAwait(false);
+                        await _cache.SetClaimsAsync(cacheKey, claimsWithExp, Options.CacheDuration, _logger).ConfigureAwait(false);
                     }
 
                     return await ReportNonSuccessAndReturn("Token is not active.", Context, Scheme, Events, Options);
