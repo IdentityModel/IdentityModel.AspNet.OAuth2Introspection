@@ -12,6 +12,35 @@ namespace Tests
     public static class Unit
     {
         [Theory]
+        [InlineData(null, "key:")]
+        [InlineData("", "key:")]
+        [InlineData(" ", "key:")]
+        [InlineData("abcdefg01234", "key:9/+6X7C6m2lsSY7l+QUPZ8WP88j03/JP3iTSUUFqJBY=")]
+        [InlineData("0123456789012345678901234567890123456789", "key:+1Js1K0OyXjBqeePfAcocRE5l4Qk1hjrIovlniEYiXA=")]
+        public static void CacheKey_From_Token(string input, string expected)
+        {
+            var opts = new OAuth2IntrospectionOptions { CacheKeyPrefix = "key:" };
+            var key = CacheUtils.CacheKeyFromToken()(opts, input);
+            Assert.Equal(expected, key);
+        }
+
+        [Fact]
+        public static void CacheKey_From_Long_Token()
+        {
+            const string token =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4g" +
+                "RG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5ceyJhbGc" +
+                "iOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiw" +
+                "iaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5ceyJhbGciOiJIUz" +
+                "I1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0I" +
+                "joxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+
+            var opts = new OAuth2IntrospectionOptions { CacheKeyPrefix = "" };
+            var key = CacheUtils.CacheKeyFromToken()(opts, token);
+            Assert.Equal("isDF1Tx4u6Fm+T7JQ2gK3yUimvGzy7jF1e7X79vDVTs=", key);
+        }
+
+        [Theory]
         [InlineData(null, new string[] { })]
         [InlineData(null, new string[] { "Basic XYZ" })]
         [InlineData(null, new string[] { "Basic XYZ", "Bearer ABC" })]
