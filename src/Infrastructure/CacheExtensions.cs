@@ -9,7 +9,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace IdentityModel.AspNetCore.OAuth2Introspection
@@ -20,29 +19,21 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
         static CacheExtensions()
         {
-            
+            Options = new JsonSerializerOptions
+            {
+                IgnoreReadOnlyFields = true,
+                IgnoreReadOnlyProperties = true,
+                Converters = { new ClaimConverter() },
 #if NET6_0_OR_GREATER
-            Options = new JsonSerializerOptions
-            {
-                IgnoreReadOnlyFields = true,
-                IgnoreReadOnlyProperties = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
 #else
-            Options = new JsonSerializerOptions
-            {
-                IgnoreReadOnlyFields = true,
-                IgnoreReadOnlyProperties = true,
-                IgnoreNullValues = true
-            };
+                IgnoreNullValues = true,
 #endif
-            
-            Options.Converters.Add(new ClaimConverter());
+            };
         }
 
-        public static async Task<IEnumerable<Claim>> GetClaimsAsync(this IDistributedCache cache, OAuth2IntrospectionOptions options, string token)
+        public static async Task<IEnumerable<Claim>> GetClaimsAsync(this IDistributedCache cache, string cacheKey)
         {
-            var cacheKey = options.CacheKeyGenerator(options,token);
             var bytes = await cache.GetAsync(cacheKey).ConfigureAwait(false);
 
             if (bytes == null)
@@ -50,23 +41,22 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 return null;
             }
 
-            var json = Encoding.UTF8.GetString(bytes);
-            return JsonSerializer.Deserialize<IEnumerable<Claim>>(json, Options);
+            return JsonSerializer.Deserialize<IEnumerable<Claim>>(bytes, Options);
         }
 
-        public static async Task SetClaimsAsync(this IDistributedCache cache, OAuth2IntrospectionOptions options, string token, IEnumerable<Claim> claims, TimeSpan duration, ILogger logger)
+        public static async Task SetClaimsAsync(this IDistributedCache cache, string cacheKey, IEnumerable<Claim> claims, TimeSpan duration, ILogger logger)
         {
             var expClaim = claims.FirstOrDefault(c => c.Type == JwtClaimTypes.Expiration);
+
             if (expClaim == null)
             {
-                logger.LogWarning("No exp claim found on introspection response, can't cache.");
+                Log.NoExpClaimFound(logger, null);
                 return;
             }
 
             var now = DateTimeOffset.UtcNow;
             var expiration = DateTimeOffset.FromUnixTimeSeconds(long.Parse(expClaim.Value));
-            logger.LogDebug("Token will expire in {expiration}", expiration);
-
+            Log.TokenExpiresOn(logger, expiration, null);
 
             if (expiration <= now)
             {
@@ -84,11 +74,9 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 absoluteLifetime = now.Add(duration);
             }
 
-            var json = JsonSerializer.Serialize(claims, Options);
-            var bytes = Encoding.UTF8.GetBytes(json);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(claims, Options);
 
-            logger.LogDebug("Setting cache item expiration to {expiration}", absoluteLifetime);
-            var cacheKey = options.CacheKeyGenerator(options, token);
+            Log.SettingToCache(logger, absoluteLifetime, null);
             await cache.SetAsync(cacheKey, bytes, new DistributedCacheEntryOptions { AbsoluteExpiration = absoluteLifetime }).ConfigureAwait(false);
         }
     }

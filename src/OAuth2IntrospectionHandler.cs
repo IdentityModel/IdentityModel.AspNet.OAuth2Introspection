@@ -50,7 +50,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
 
         /// <summary>
-        /// The handler calls methods on the events which give the application control at certain points where processing is occurring. 
+        /// The handler calls methods on the events which give the application control at certain points where processing is occurring.
         /// If it is not provided a default instance is supplied which does nothing when the methods are called.
         /// </summary>
         protected new OAuth2IntrospectionEvents Events
@@ -78,21 +78,23 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
             // if token contains a dot - it might be a JWT and we are skipping
             // this is configurable
-            if (token.Contains('.') && Options.SkipTokensWithDots)
+            if (Options.SkipTokensWithDots && token.Contains('.'))
             {
-                _logger.LogTrace("Token contains a dot - skipped because SkipTokensWithDots is set.");
+                Log.SkippingDotToken(_logger, null);
                 return AuthenticateResult.NoResult();
             }
+
+            string cacheKey = Options.EnableCaching ? Options.CacheKeyGenerator(Options, token) : null;
 
             // if caching is enable - let's check if we have a cached introspection
             if (Options.EnableCaching)
             {
-                var claims = await _cache.GetClaimsAsync(Options, token).ConfigureAwait(false);
+                var claims = await _cache.GetClaimsAsync(cacheKey).ConfigureAwait(false);
                 if (claims != null)
                 {
                     // find out if it is a cached inactive token
-                    var isInActive = claims.FirstOrDefault(c => string.Equals(c.Type, "active", StringComparison.OrdinalIgnoreCase) && string.Equals(c.Value, "false", StringComparison.OrdinalIgnoreCase));
-                    if (isInActive != null)
+                    var isInActive = claims.Any(c => string.Equals(c.Type, "active", StringComparison.OrdinalIgnoreCase) && string.Equals(c.Value, "false", StringComparison.OrdinalIgnoreCase));
+                    if (isInActive)
                     {
                         return await ReportNonSuccessAndReturn("Cached token is not active.", Context, Scheme, Events, Options);
                     }
@@ -100,7 +102,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                     return await CreateTicket(claims, token, Context, Scheme, Events, Options);
                 }
 
-                _logger.LogTrace("Token is not cached.");
+                Log.TokenNotCached(_logger, null);
             }
 
             // no cached result - let's make a network roundtrip to the introspection endpoint
@@ -119,7 +121,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
                 if (response.IsError)
                 {
-                    _logger.LogError("Error returned from introspection endpoint: " + response.Error);
+                    Log.IntrospectionError(_logger, response.Error, null);
                     return await ReportNonSuccessAndReturn("Error returned from introspection endpoint: " + response.Error, Context, Scheme, Events, Options);
                 }
 
@@ -127,7 +129,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                 {
                     if (Options.EnableCaching)
                     {
-                        await _cache.SetClaimsAsync(Options, token, response.Claims, Options.CacheDuration, _logger).ConfigureAwait(false);
+                        await _cache.SetClaimsAsync(cacheKey, response.Claims, Options.CacheDuration, _logger).ConfigureAwait(false);
                     }
 
                     return await CreateTicket(response.Claims, token, Context, Scheme, Events, Options);
@@ -140,8 +142,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                         var claimsWithExp = response.Claims.ToList();
                         claimsWithExp.Add(new Claim("exp",
                             DateTimeOffset.UtcNow.Add(Options.CacheDuration).ToUnixTimeSeconds().ToString()));
-                        await _cache.SetClaimsAsync(Options, token, claimsWithExp, Options.CacheDuration, _logger)
-                            .ConfigureAwait(false);
+                        await _cache.SetClaimsAsync(cacheKey, claimsWithExp, Options.CacheDuration, _logger).ConfigureAwait(false);
                     }
 
                     return await ReportNonSuccessAndReturn("Token is not active.", Context, Scheme, Events, Options);
@@ -154,10 +155,10 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         }
 
         private static async Task<AuthenticateResult> ReportNonSuccessAndReturn(
-            string error, 
-            HttpContext httpContext, 
-            AuthenticationScheme scheme, 
-            OAuth2IntrospectionEvents events, 
+            string error,
+            HttpContext httpContext,
+            AuthenticationScheme scheme,
+            OAuth2IntrospectionEvents events,
             OAuth2IntrospectionOptions options)
         {
             var authenticationFailedContext = new AuthenticationFailedContext(httpContext, scheme, options)
@@ -171,10 +172,10 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         }
 
         private static async Task<TokenIntrospectionResponse> LoadClaimsForToken(
-	        string token, 
-	        HttpContext context, 
-	        AuthenticationScheme scheme, 
-	        OAuth2IntrospectionEvents events, 
+	        string token,
+	        HttpContext context,
+	        AuthenticationScheme scheme,
+	        OAuth2IntrospectionEvents events,
 	        OAuth2IntrospectionOptions options)
         {
             var introspectionClient = await options.IntrospectionClient.Value.ConfigureAwait(false);
@@ -231,10 +232,10 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         }
 
         private static async Task<AuthenticateResult> CreateTicket(
-            IEnumerable<Claim> claims, 
-            string token, 
-            HttpContext httpContext, 
-            AuthenticationScheme scheme, 
+            IEnumerable<Claim> claims,
+            string token,
+            HttpContext httpContext,
+            AuthenticationScheme scheme,
             OAuth2IntrospectionEvents events,
             OAuth2IntrospectionOptions options)
         {
