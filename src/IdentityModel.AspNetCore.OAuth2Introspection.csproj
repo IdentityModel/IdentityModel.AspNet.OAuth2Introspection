@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
 
     <PackageId>IdentityModel.AspNetCore.OAuth2Introspection</PackageId>
     <Description>ASP.NET Core authentication handler for validating tokens using OAuth 2.0 introspection</Description>
@@ -27,9 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="IdentityModel" Version="6.0.0" />
-
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
-    <PackageReference Include="minver" Version="4.3.0" PrivateAssets="All" />
+    <PackageReference Include="IdentityModel" Version="7.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="minver" Version="5.0.0" PrivateAssets="All" />
   </ItemGroup>
 </Project>
