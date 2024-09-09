@@ -28,6 +28,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         private static readonly ConcurrentDictionary<string, Lazy<Task<TokenIntrospectionResponse>>> IntrospectionDictionary =
             new ConcurrentDictionary<string, Lazy<Task<TokenIntrospectionResponse>>>();
 
+#if NET6_0
         /// <summary>
         /// Initializes a new instance of the <see cref="OAuth2IntrospectionHandler"/> class.
         /// </summary>
@@ -47,6 +48,25 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
             _logger = loggerFactory.CreateLogger<OAuth2IntrospectionHandler>();
             _cache = cache;
         }
+#elif NET8_0_OR_GREATER
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OAuth2IntrospectionHandler"/> class.
+        /// </summary>
+        /// <param name="options">The options.</param>
+        /// <param name="urlEncoder">The URL encoder.</param>
+        /// <param name="loggerFactory">The logger factory.</param>
+        /// <param name="cache">The cache.</param>
+        public OAuth2IntrospectionHandler(
+            IOptionsMonitor<OAuth2IntrospectionOptions> options,
+            UrlEncoder urlEncoder,
+            ILoggerFactory loggerFactory,
+            IDistributedCache cache = null)
+            : base(options, loggerFactory, urlEncoder)
+        {
+            _logger = loggerFactory.CreateLogger<OAuth2IntrospectionHandler>();
+            _cache = cache;
+        }
+#endif
 
 
         /// <summary>
