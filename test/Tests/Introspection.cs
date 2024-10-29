@@ -12,6 +12,8 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Tests.Util;
 using Xunit;
@@ -59,6 +61,109 @@ namespace Tests
             var request = handler.LastRequest;
             request.Should().ContainKey("client_id").WhichValue.Should().Be(clientId);
             request.Should().ContainKey("client_secret").WhichValue.Should().Be(clientSecret);
+        }
+
+        [Theory]
+        [InlineData(IntrospectionEndpointHandler.Behavior.Active, HttpStatusCode.OK)]
+        [InlineData(IntrospectionEndpointHandler.Behavior.Unauthorized, HttpStatusCode.Unauthorized)]
+        public async Task TwoConcurrentCalls_FirstIntrospectDoesNotThrow_SecondShouldNotBeCalled(
+            IntrospectionEndpointHandler.Behavior behavior,
+            HttpStatusCode expectedStatusCode)
+        {
+            const string token = "sometoken";
+            var waitForTheFirstIntrospectionToStart = new ManualResetEvent(initialState: false);
+            var waitForTheSecondRequestToStart = new ManualResetEvent(initialState: false);
+            var handler = new IntrospectionEndpointHandler(behavior);
+
+            var requestCount = 0;
+
+            var messageHandler = PipelineFactory.CreateHandler(o =>
+            {
+                _options(o);
+
+                o.Events.OnSendingRequest = async context =>
+                {
+                    requestCount += 1;
+
+                    if (requestCount == 1)
+                    {
+                        waitForTheSecondRequestToStart.WaitOne();
+                        waitForTheFirstIntrospectionToStart.Set();
+                        await Task.Delay(200); // wait for second request to reach the IntrospectionDictionary
+                    }
+                };
+            }, handler);
+
+            var client1 = new HttpClient(messageHandler);
+            var request1 = Task.Run(async () =>
+            {
+                client1.SetBearerToken(token);
+                return await client1.GetAsync("http://test");
+            });
+
+            var client2 = new HttpClient(messageHandler);
+            var request2 = Task.Run(async () =>
+            {
+                waitForTheSecondRequestToStart.Set();
+                waitForTheFirstIntrospectionToStart.WaitOne();
+                client2.SetBearerToken(token);
+                return await client2.GetAsync("http://test");
+            });
+
+            await Task.WhenAll(request1, request2);
+
+            var result1 = await request1;
+            result1.StatusCode.Should().Be(expectedStatusCode);
+
+            requestCount.Should().Be(1);
+
+            var result2 = await request2;
+            result2.StatusCode.Should().Be(expectedStatusCode);
+        }
+
+        [Fact]
+        public async Task ActiveToken_WithTwoConcurrentCalls_FirstCancelled_SecondShouldNotBeCancelled()
+        {
+            const string token = "sometoken";
+            var cts = new CancellationTokenSource();
+            var waitForTheFirstIntrospectionToStart = new ManualResetEvent(initialState: false);
+            var waitForTheSecondRequestToStart = new ManualResetEvent(initialState: false);
+            var handler = new IntrospectionEndpointHandler(IntrospectionEndpointHandler.Behavior.Active);
+
+            var messageHandler = PipelineFactory.CreateHandler(o =>
+            {
+                _options(o);
+
+                o.Events.OnSendingRequest = async context =>
+                {
+                    waitForTheSecondRequestToStart.WaitOne();
+                    waitForTheFirstIntrospectionToStart.Set();
+                    cts.Cancel();
+                    await Task.Delay(200); // wait for second request to reach the IntrospectionDictionary
+                };
+            }, handler);
+
+            var client1 = new HttpClient(messageHandler);
+            var request1 = Task.Run(async () =>
+            {
+                client1.SetBearerToken(token);
+                var doRequest = () => client1.GetAsync("http://test", cts.Token);
+                await doRequest.Should().ThrowAsync<OperationCanceledException>();
+            });
+
+            var client2 = new HttpClient(messageHandler);
+            var request2 = Task.Run(async () =>
+            {
+                waitForTheSecondRequestToStart.Set();
+                waitForTheFirstIntrospectionToStart.WaitOne();
+                client2.SetBearerToken(token);
+                return await client2.GetAsync("http://test");
+            });
+
+            await Task.WhenAll(request1, request2);
+
+            var result2 = await request2;
+            result2.StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
         [Theory]

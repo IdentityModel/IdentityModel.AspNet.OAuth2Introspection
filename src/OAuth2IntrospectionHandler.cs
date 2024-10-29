@@ -187,7 +187,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 
             await events.SendingRequest(requestSendingContext);
 
-            return await introspectionClient.IntrospectTokenAsync(request, context.RequestAborted).ConfigureAwait(false);
+            return await introspectionClient.IntrospectTokenAsync(request).ConfigureAwait(false);
         }
 
         private static TokenIntrospectionRequest CreateTokenIntrospectionRequest(
