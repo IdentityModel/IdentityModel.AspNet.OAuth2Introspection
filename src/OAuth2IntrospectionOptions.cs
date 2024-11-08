@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Net.Http;
+using System.Threading;
 
 namespace IdentityModel.AspNetCore.OAuth2Introspection
 {
@@ -45,7 +46,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         /// </summary>
         public string ClientSecret { get; set; }
 
-        internal object AssertionUpdateLockObj = new object();
+        internal readonly SemaphoreSlim AssertionUpdateLock = new SemaphoreSlim(1, 1);
 
         internal ClientAssertion ClientAssertion { get; set; }
 

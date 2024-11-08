@@ -178,7 +178,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 	        OAuth2IntrospectionOptions options)
         {
             var introspectionClient = await options.IntrospectionClient.Value.ConfigureAwait(false);
-            using var request = CreateTokenIntrospectionRequest(token, context, scheme, events, options);
+            using var request = await CreateTokenIntrospectionRequest(token, context, scheme, events, options);
 
             var requestSendingContext = new SendingRequestContext(context, scheme, options)
             {
@@ -190,7 +190,7 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
             return await introspectionClient.IntrospectTokenAsync(request, context.RequestAborted).ConfigureAwait(false);
         }
 
-        private static TokenIntrospectionRequest CreateTokenIntrospectionRequest(
+        private static async ValueTask<TokenIntrospectionRequest> CreateTokenIntrospectionRequest(
 	        string token,
 	        HttpContext context,
 	        AuthenticationScheme scheme,
@@ -199,7 +199,9 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
         {
             if (options.ClientSecret == null && options.ClientAssertionExpirationTime <= DateTime.UtcNow)
             {
-                lock (options.AssertionUpdateLockObj)
+                await options.AssertionUpdateLock.WaitAsync();
+
+                try
                 {
                     if (options.ClientAssertionExpirationTime <= DateTime.UtcNow)
                     {
@@ -208,12 +210,16 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
                             ClientAssertion = options.ClientAssertion ?? new ClientAssertion()
                         };
 
-                        events.UpdateClientAssertion(updateClientAssertionContext);
+                        await events.UpdateClientAssertion(updateClientAssertionContext);
 
                         options.ClientAssertion = updateClientAssertionContext.ClientAssertion;
                         options.ClientAssertionExpirationTime =
                             updateClientAssertionContext.ClientAssertionExpirationTime;
                     }
+                }
+                finally
+                {
+                    options.AssertionUpdateLock.Release();
                 }
             }
 
