@@ -52,7 +52,7 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             builder.Services.AddHttpClient(OAuth2IntrospectionDefaults.BackChannelHttpClientName);
             
-            builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OAuth2IntrospectionOptions>, PostConfigureOAuth2IntrospectionOptions>());
+            builder.Services.Add(ServiceDescriptor.Singleton<IPostConfigureOptions<OAuth2IntrospectionOptions>>(p => ActivatorUtilities.CreateInstance<PostConfigureOAuth2IntrospectionOptions>(p, authenticationScheme)));
             return builder.AddScheme<OAuth2IntrospectionOptions, OAuth2IntrospectionHandler>(authenticationScheme, configureOptions);
         }
     }

@@ -13,17 +13,24 @@ namespace IdentityModel.AspNetCore.OAuth2Introspection
 {
     internal class PostConfigureOAuth2IntrospectionOptions : IPostConfigureOptions<OAuth2IntrospectionOptions>
     {
+        private readonly string _name;
         private readonly IDistributedCache _cache;
         private readonly IHttpClientFactory _httpClientFactory;
 
-        public PostConfigureOAuth2IntrospectionOptions(IHttpClientFactory httpClientFactory, IDistributedCache cache = null)
+        public PostConfigureOAuth2IntrospectionOptions(string name, IHttpClientFactory httpClientFactory, IDistributedCache cache = null)
         {
+            _name = name;
             _cache = cache;
             _httpClientFactory = httpClientFactory;
         }
 
         public void PostConfigure(string name, OAuth2IntrospectionOptions options)
         {
+            if (name != _name)
+            {
+                return;
+            }
+
             options.Validate();
 
             if (options.EnableCaching && _cache == null)
